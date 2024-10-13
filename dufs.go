@@ -89,7 +89,7 @@ func (d *DufsVFS) appendToRoot(name string) (*URL, error) {
 
 	u.Path = strings.Trim(u.Path, "/") + "/" + strings.Join(segments, "/")
 
-	if strings.HasPrefix(name, "") {
+	if strings.HasPrefix(name, "/") {
 		u.Path += "/"
 	}
 
@@ -400,6 +400,9 @@ func (d *DufsFile) Stat() (fs.FileInfo, error) {
 
 	lastModified := resp.Header.Get("Last-Modified")
 	mtime, err := time.Parse(time.RFC1123, lastModified)
+	if err != nil {
+		return nil, err
+	}
 
 	return &HttpFileInfo{
 		name:  d.Name,
