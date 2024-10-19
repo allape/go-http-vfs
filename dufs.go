@@ -206,6 +206,7 @@ func (d *DufsVFS) Copy(dst, src string) error {
 
 type DufsFile struct {
 	File
+	io.Seeker
 	io.Writer
 	io.WriterTo
 	io.WriterAt
@@ -455,4 +456,32 @@ func (d *DufsFile) WriteAt(p []byte, off int64) (n int, err error) {
 	d.index = end
 
 	return len(p), nil
+}
+
+func (d *DufsFile) Seek(offset int64, whence int) (int64, error) {
+	stat, err := d.Stat()
+	if err != nil {
+		return 0, err
+	}
+
+	switch whence {
+	case io.SeekStart:
+		d.index = offset
+	case io.SeekCurrent:
+		d.index += offset
+	case io.SeekEnd:
+		d.index = stat.Size() + offset
+	}
+
+	if d.index < 0 {
+		return 0, errors.New("dufs: negative offset")
+	} else if d.index > stat.Size() {
+		return 0, errors.New("dufs: offset out of range")
+	}
+
+	return d.index, nil
+}
+
+func (d *DufsFile) String() string {
+	return d.Href.String()
 }
