@@ -256,9 +256,10 @@ func (d *DufsFile) get(headers http.Header) (*http.Response, error) {
 		return nil, err
 	}
 
+	d.FS.GetLogger().Println("Get file", link, "with status code:", resp.StatusCode)
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fs.ErrNotExist
-	} else if resp.StatusCode != http.StatusOK {
+	} else if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, fs.ErrInvalid
 	}
 
@@ -287,9 +288,10 @@ func (d *DufsFile) head() (*http.Response, error) {
 		_ = resp.Body.Close()
 	}()
 
+	d.FS.GetLogger().Println("Head file", link, "with status code:", resp.StatusCode)
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fs.ErrNotExist
-	} else if resp.StatusCode != http.StatusOK {
+	} else if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, fs.ErrInvalid
 	}
 
@@ -326,7 +328,8 @@ func (d *DufsFile) Read(p []byte) (n int, err error) {
 }
 
 func (d *DufsFile) ReadFrom(reader io.Reader) (int64, error) {
-	req, err := http.NewRequest(http.MethodPut, d.Href.String(), reader)
+	href := d.Href.String()
+	req, err := http.NewRequest(http.MethodPut, href, reader)
 	if err != nil {
 		return 0, err
 	}
@@ -340,6 +343,7 @@ func (d *DufsFile) ReadFrom(reader io.Reader) (int64, error) {
 		_ = resp.Body.Close()
 	}()
 
+	d.FS.GetLogger().Println("Put file", href, " with ReadFrom result in status code:", resp.StatusCode)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return 0, errors.New(resp.Status)
 	}
@@ -400,9 +404,17 @@ func (d *DufsFile) Stat() (fs.FileInfo, error) {
 	}()
 
 	lastModified := resp.Header.Get("Last-Modified")
-	mtime, err := time.Parse(time.RFC1123, lastModified)
-	if err != nil {
-		return nil, err
+	if lastModified == "" {
+		lastModified = resp.Header.Get("Date")
+	}
+
+	var mtime time.Time
+
+	if lastModified != "" {
+		mtime, err = time.Parse(time.RFC1123, lastModified)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &HttpFileInfo{
@@ -433,7 +445,8 @@ func (d *DufsFile) Write(p []byte) (n int, err error) {
 }
 
 func (d *DufsFile) WriteAt(p []byte, off int64) (n int, err error) {
-	req, err := http.NewRequest(http.MethodPatch, d.Href.String(), bytes.NewReader(p))
+	href := d.Href.String()
+	req, err := http.NewRequest(http.MethodPatch, href, bytes.NewReader(p))
 	if err != nil {
 		return 0, err
 	}
@@ -449,6 +462,7 @@ func (d *DufsFile) WriteAt(p []byte, off int64) (n int, err error) {
 		_ = resp.Body.Close()
 	}()
 
+	d.FS.GetLogger().Println("Patch file", href, " with WriteAt result in status code:", resp.StatusCode)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return 0, errors.New(resp.Status)
 	}

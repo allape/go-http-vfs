@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+var DiscardLogger = log.New(io.Discard, "", 0)
+
 type VFS interface {
 	fs.StatFS
 	fs.ReadDirFS
@@ -93,6 +95,11 @@ func (d *HttpDirEntry) Info() (fs.FileInfo, error) {
 
 type OpenFunc func(name string) (fs.File, error)
 
+const (
+	DefaultTimeout       = 30 * time.Second
+	DefaultOnlineTimeout = 3 * time.Second
+)
+
 type HttpVFS struct {
 	VFS
 
@@ -108,8 +115,10 @@ func NewHttpVFS(root, tag string) (*HttpVFS, error) {
 	return &HttpVFS{
 		Root: root,
 
-		Logger:     log.New(os.Stderr, tag+" ", log.LstdFlags),
-		HttpClient: &http.Client{},
+		Logger: log.New(os.Stderr, tag+" ", log.LstdFlags),
+		HttpClient: &http.Client{
+			Timeout: DefaultTimeout,
+		},
 	}, nil
 }
 
@@ -127,7 +136,7 @@ func (d *HttpVFS) SetLogger(logger *log.Logger) {
 
 func (d *HttpVFS) GetLogger() *log.Logger {
 	if d.Logger == nil {
-		return log.New(io.Discard, "", 0)
+		return DiscardLogger
 	}
 	return d.Logger
 }
@@ -174,6 +183,37 @@ func (d *HttpVFS) Stat(name string) (fs.FileInfo, error) {
 	}
 
 	return file.Stat()
+}
+
+func (d *HttpVFS) Online(timeout *time.Duration) (bool, error) {
+	req, err := http.NewRequest(http.MethodHead, d.Root, nil)
+	if err != nil {
+		return false, err
+	}
+
+	oldTimeout := d.HttpClient.Timeout
+	if timeout == nil {
+		d.HttpClient.Timeout = DefaultOnlineTimeout
+	} else {
+		d.HttpClient.Timeout = *timeout
+	}
+	defer func() {
+		d.HttpClient.Timeout = oldTimeout
+	}()
+
+	res, err := d.HttpClient.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer func() {
+		_ = res.Body.Close()
+	}()
+
+	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 type URL struct {

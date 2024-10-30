@@ -78,6 +78,29 @@ func CheckDufsServer() {
 	}
 }
 
+func TestDufsOnline(t *testing.T) {
+	dufs, err := NewDufsVFS(DufsAddr + "1") // fake address, port 80801 should not be taken
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	online, _ := dufs.Online(nil)
+	if online {
+		t.Fatal("dufs should be offline")
+	}
+
+	CheckDufsServer()
+
+	dufs, err = NewDufsVFS(DufsAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	online, _ = dufs.Online(nil)
+	if !online {
+		t.Fatal("dufs should be online")
+	}
+}
+
 func TestDufsRead(t *testing.T) {
 	CheckDufsServer()
 	dufs, err := NewDufsVFS(DufsAddr)

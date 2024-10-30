@@ -1,5 +1,7 @@
 # VFS over HTTP
 
+FYI, not thread safe.
+
 ## Adapted Server
 
 - [dufs](dufs.go): https://github.com/sigoden/dufs
