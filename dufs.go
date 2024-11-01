@@ -211,7 +211,8 @@ type DufsFile struct {
 	io.WriterTo
 	io.WriterAt
 
-	index int64
+	index       int64
+	cachedState fs.FileInfo
 
 	FS   VFS
 	Name string
@@ -307,6 +308,15 @@ func (d *DufsFile) Close() error {
 func (d *DufsFile) Read(p []byte) (n int, err error) {
 	end := d.index + int64(len(p)) - 1
 
+	stat, err := d.CachedStat()
+	if err != nil {
+		return 0, err
+	}
+
+	if end >= stat.Size() {
+		end = stat.Size() - 1
+	}
+
 	header := http.Header{}
 	header.Set("Range", fmt.Sprintf("bytes=%d-%d", d.index, end))
 
@@ -348,6 +358,8 @@ func (d *DufsFile) ReadFrom(reader io.Reader) (int64, error) {
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return 0, errors.New(resp.Status)
 	}
+
+	d.cachedState = nil
 
 	return contentLength, nil
 }
@@ -418,13 +430,24 @@ func (d *DufsFile) Stat() (fs.FileInfo, error) {
 		}
 	}
 
-	return &HttpFileInfo{
+	stat := &HttpFileInfo{
 		name:  d.Name,
 		size:  resp.ContentLength,
 		mode:  fs.ModePerm,
 		mtime: mtime,
 		isDir: d.determineIsDir(resp),
-	}, nil
+	}
+
+	d.cachedState = stat
+
+	return stat, nil
+}
+
+func (d *DufsFile) CachedStat() (fs.FileInfo, error) {
+	if d.cachedState != nil {
+		return d.cachedState, nil
+	}
+	return d.Stat()
 }
 
 func (d *DufsFile) WriteTo(writer io.Writer) (int64, error) {
@@ -469,6 +492,8 @@ func (d *DufsFile) WriteAt(p []byte, off int64) (n int, err error) {
 	}
 
 	d.index = end
+
+	d.cachedState = nil
 
 	return len(p), nil
 }
