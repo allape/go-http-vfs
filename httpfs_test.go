@@ -168,9 +168,11 @@ func TestDufsWrite(t *testing.T) {
 	}
 
 	if f, ok := file.(io.ReaderFrom); ok {
-		_, err = f.ReadFrom(bytes.NewReader(data))
+		n, err := f.ReadFrom(bytes.NewReader(data))
 		if err != nil {
 			t.Fatal(err)
+		} else if n != int64(len(data)) {
+			t.Fatalf("file size mismatch, expected %d, got %d", len(data), n)
 		}
 	} else {
 		t.Fatal("file should be io.ReaderFrom")

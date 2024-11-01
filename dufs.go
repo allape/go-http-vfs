@@ -329,7 +329,8 @@ func (d *DufsFile) Read(p []byte) (n int, err error) {
 
 func (d *DufsFile) ReadFrom(reader io.Reader) (int64, error) {
 	href := d.Href.String()
-	req, err := http.NewRequest(http.MethodPut, href, reader)
+	contentLength := int64(0)
+	req, err := http.NewRequest(http.MethodPut, href, NewSumReader(reader, &contentLength))
 	if err != nil {
 		return 0, err
 	}
@@ -348,7 +349,7 @@ func (d *DufsFile) ReadFrom(reader io.Reader) (int64, error) {
 		return 0, errors.New(resp.Status)
 	}
 
-	return resp.Request.ContentLength, nil
+	return contentLength, nil
 }
 
 func (d *DufsFile) ReadDir(n int) ([]fs.DirEntry, error) {
