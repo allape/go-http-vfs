@@ -332,7 +332,7 @@ func (d *DufsFile) Read(p []byte) (int, error) {
 		return 0, fs.ErrInvalid
 	}
 
-	d.index = end
+	d.index = end + 1
 
 	buf := bytes.NewBuffer(nil)
 	n, err := io.CopyN(buf, resp.Body, resp.ContentLength)
@@ -496,7 +496,7 @@ func (d *DufsFile) WriteAt(p []byte, off int64) (n int, err error) {
 		return 0, errors.New(resp.Status)
 	}
 
-	d.index = end
+	d.index = end + 1
 
 	d.cachedState = nil
 
