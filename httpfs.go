@@ -97,7 +97,7 @@ type OpenFunc func(name string) (fs.File, error)
 
 const (
 	DefaultTimeout       = 30 * time.Second
-	DefaultOnlineTimeout = 3 * time.Second
+	DefaultOnlineTimeout = 5 * time.Second
 )
 
 type HttpVFS struct {
@@ -209,6 +209,7 @@ func (d *HttpVFS) Online(timeout *time.Duration) (bool, error) {
 		_ = res.Body.Close()
 	}()
 
+	d.GetLogger().Println("Online check:", res.StatusCode)
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
 		return false, nil
 	}

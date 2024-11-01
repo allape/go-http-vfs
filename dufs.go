@@ -305,7 +305,7 @@ func (d *DufsFile) Close() error {
 
 // Read
 // Inefficient with short p: use WriteTo or io.Copy instead
-func (d *DufsFile) Read(p []byte) (n int, err error) {
+func (d *DufsFile) Read(p []byte) (int, error) {
 	end := d.index + int64(len(p)) - 1
 
 	stat, err := d.CachedStat()
@@ -334,7 +334,12 @@ func (d *DufsFile) Read(p []byte) (n int, err error) {
 
 	d.index = end
 
-	return resp.Body.Read(p)
+	buf := bytes.NewBuffer(nil)
+	n, err := io.CopyN(buf, resp.Body, resp.ContentLength)
+
+	copy(p, buf.Bytes())
+
+	return int(n), err
 }
 
 func (d *DufsFile) ReadFrom(reader io.Reader) (int64, error) {

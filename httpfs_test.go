@@ -40,9 +40,14 @@ func Sha256(data []byte) (HashString, error) {
 }
 
 func CreateTestData() (HashString, FileName, []byte, error) {
+	err := os.MkdirAll(TestDataFolder, 0755)
+	if err != nil {
+		return "", "", nil, err
+	}
+
 	// random bytes
-	data := make([]byte, 1024+rand.Intn(4096))
-	_, err := crand.Read(data)
+	data := make([]byte, 1024*1024*(10+rand.Intn(90)))
+	_, err = crand.Read(data)
 	if err != nil {
 		return "", "", data, err
 	}
@@ -108,7 +113,7 @@ func TestDufsRead(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hash, filename, _, err := CreateTestData()
+	hash, filename, data, err := CreateTestData()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,6 +152,33 @@ func TestDufsRead(t *testing.T) {
 
 	if hash != remoteHash {
 		t.Fatal("hash mismatch")
+	}
+
+	if file, ok := file.(*DufsFile); ok {
+		for i := 0; i < 100+rand.Intn(100); i++ {
+			t.Log("Random read test index", i)
+
+			randomIndex := rand.Int63n(stat.Size())
+			_, err = file.Seek(randomIndex, io.SeekStart)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			bs := make([]byte, 1+rand.Intn(int(stat.Size()/2)))
+
+			t.Log("Read at", randomIndex, "for", len(bs))
+
+			n, err := file.Read(bs)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			bs = bs[:n]
+
+			if bytes.Compare(bs, data[randomIndex:randomIndex+int64(len(bs))]) != 0 {
+				t.Fatal("read data mismatch")
+			}
+		}
 	}
 }
 
