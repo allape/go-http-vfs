@@ -499,7 +499,7 @@ func (d *DufsFile) WriteAt(p []byte, off int64) (n int, err error) {
 }
 
 func (d *DufsFile) Seek(offset int64, whence int) (int64, error) {
-	stat, err := d.Stat()
+	stat, err := d.CachedStat()
 	if err != nil {
 		return 0, err
 	}
