@@ -236,7 +236,7 @@ func (d *DufsFile) jsonize() (*URL, error) {
 	return href, nil
 }
 
-func (d *DufsFile) get(headers http.Header) (*http.Response, error) {
+func (d *DufsFile) json(method string, headers http.Header) (*http.Response, error) {
 	href, err := d.jsonize()
 	if err != nil {
 		return nil, err
@@ -244,7 +244,7 @@ func (d *DufsFile) get(headers http.Header) (*http.Response, error) {
 
 	link := href.String()
 
-	req, err := http.NewRequest(http.MethodGet, link, nil)
+	req, err := http.NewRequest(method, link, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -267,35 +267,18 @@ func (d *DufsFile) get(headers http.Header) (*http.Response, error) {
 	return resp, nil
 }
 
+func (d *DufsFile) get(headers http.Header) (*http.Response, error) {
+	return d.json(http.MethodGet, headers)
+}
+
 func (d *DufsFile) head() (*http.Response, error) {
-	href, err := d.jsonize()
+	resp, err := d.json(http.MethodHead, nil)
 	if err != nil {
-		return nil, err
-	}
-
-	link := href.String()
-
-	req, err := http.NewRequest(http.MethodHead, link, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := d.FS.GetHttpClient().Do(req)
-	if err != nil {
-		d.FS.GetLogger().Println("Head file", link, "with error:", err)
 		return nil, err
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-
-	d.FS.GetLogger().Println("Head file", link, "with status code:", resp.StatusCode)
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, fs.ErrNotExist
-	} else if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fs.ErrInvalid
-	}
-
 	return resp, nil
 }
 
@@ -370,7 +353,7 @@ func (d *DufsFile) ReadFrom(reader io.Reader) (int64, error) {
 }
 
 func (d *DufsFile) ReadDir(n int) ([]fs.DirEntry, error) {
-	resp, err := d.head()
+	resp, err := d.get(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -417,9 +400,6 @@ func (d *DufsFile) Stat() (fs.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
 	lastModified := resp.Header.Get("Last-Modified")
 	if lastModified == "" {
