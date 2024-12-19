@@ -89,7 +89,7 @@ func (d *DufsVFS) appendToRoot(name string) (*URL, error) {
 
 	u.Path = strings.Trim(u.Path, "/") + "/" + strings.Join(segments, "/")
 
-	if strings.HasPrefix(name, "/") {
+	if strings.HasPrefix(name, "/") && !strings.HasSuffix(u.Path, "/") {
 		u.Path += "/"
 	}
 
