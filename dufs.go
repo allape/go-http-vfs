@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -64,11 +65,11 @@ func NewDufsVFS(root string) (*DufsVFS, error) {
 			return nil, err
 		}
 
-		return &DufsFile{
-			FS:   base,
-			Name: name,
-			Href: *href,
-		}, nil
+		return NewDufsFile(
+			dufs,
+			name,
+			*href,
+		), nil
 	}
 
 	return dufs, nil
@@ -204,6 +205,15 @@ func (d *DufsVFS) Copy(dst, src string) error {
 	return d.copyOrRename(dst, src, false)
 }
 
+func NewDufsFile(fs *DufsVFS, name string, Href URL) *DufsFile {
+	return &DufsFile{
+		FS:     fs,
+		Name:   name,
+		Href:   Href,
+		locker: &sync.Mutex{},
+	}
+}
+
 type DufsFile struct {
 	File
 	io.Seeker
@@ -214,6 +224,8 @@ type DufsFile struct {
 
 	index       int64
 	cachedState fs.FileInfo
+
+	locker sync.Locker
 
 	FS   VFS
 	Name string
@@ -442,9 +454,13 @@ func (d *DufsFile) Stat() (fs.FileInfo, error) {
 }
 
 func (d *DufsFile) CachedStat() (fs.FileInfo, error) {
+	d.locker.Lock()
+	defer d.locker.Unlock()
+
 	if d.cachedState != nil {
 		return d.cachedState, nil
 	}
+
 	return d.Stat()
 }
 
