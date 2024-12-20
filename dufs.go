@@ -440,12 +440,19 @@ func (d *DufsFile) Stat() (fs.FileInfo, error) {
 		}
 	}
 
+	isDir := d.determineIsDir(resp)
+	size := int64(0)
+
+	if !isDir {
+		size = resp.ContentLength
+	}
+
 	stat := &HttpFileInfo{
 		name:  d.Name,
-		size:  resp.ContentLength,
+		size:  size,
 		mode:  fs.ModePerm,
 		mtime: mtime,
-		isDir: d.determineIsDir(resp),
+		isDir: isDir,
 	}
 
 	d.cachedState = stat
