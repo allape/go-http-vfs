@@ -207,6 +207,7 @@ func (d *DufsVFS) Copy(dst, src string) error {
 type DufsFile struct {
 	File
 	io.Seeker
+	io.ReaderAt
 	io.Writer
 	io.WriterTo
 	io.WriterAt
@@ -327,6 +328,14 @@ func (d *DufsFile) Read(p []byte) (int, error) {
 	copy(p, buf.Bytes())
 
 	return int(n), err
+}
+
+func (d *DufsFile) ReadAt(p []byte, off int64) (int, error) {
+	_, err := d.Seek(off, io.SeekStart)
+	if err != nil {
+		return 0, err
+	}
+	return d.Read(p)
 }
 
 func (d *DufsFile) ReadFrom(reader io.Reader) (int64, error) {
