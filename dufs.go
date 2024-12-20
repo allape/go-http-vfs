@@ -300,6 +300,10 @@ func (d *DufsFile) Read(p []byte) (int, error) {
 		end = stat.Size() - 1
 	}
 
+	if d.index >= end {
+		return 0, io.EOF
+	}
+
 	header := http.Header{}
 	header.Set("Range", fmt.Sprintf("bytes=%d-%d", d.index, end))
 
