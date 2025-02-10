@@ -413,7 +413,7 @@ func (d *DufsFile) ReadDir(n int) ([]fs.DirEntry, error) {
 				name:  file.Name,
 				size:  file.Size,
 				mode:  fs.ModePerm,
-				mtime: time.Unix(file.MTime, 0),
+				mtime: time.UnixMilli(file.MTime),
 				isDir: file.PathType == PathTypeDir,
 			},
 		})
