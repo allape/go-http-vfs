@@ -207,10 +207,11 @@ func (d *DufsVFS) Copy(dst, src string) error {
 
 func NewDufsFile(fs *DufsVFS, name string, Href URL) *DufsFile {
 	return &DufsFile{
-		FS:     fs,
-		Name:   name,
-		Href:   Href,
-		locker: &sync.Mutex{},
+		FS:                fs,
+		Name:              name,
+		Href:              Href,
+		indexLocker:       &sync.Mutex{},
+		cachedStateLocker: &sync.Mutex{},
 	}
 }
 
@@ -225,7 +226,8 @@ type DufsFile struct {
 	index       int64
 	cachedState fs.FileInfo
 
-	locker sync.Locker
+	indexLocker       sync.Locker
+	cachedStateLocker sync.Locker
 
 	FS   VFS
 	Name string
@@ -302,6 +304,9 @@ func (d *DufsFile) Close() error {
 // Read
 // Inefficient with short p: use WriteTo or io.Copy instead
 func (d *DufsFile) Read(p []byte) (int, error) {
+	d.indexLocker.Lock()
+	defer d.indexLocker.Unlock()
+
 	end := d.index + int64(len(p)) - 1
 
 	stat, err := d.CachedStat()
@@ -367,7 +372,7 @@ func (d *DufsFile) ReadFrom(reader io.Reader) (int64, error) {
 		_ = resp.Body.Close()
 	}()
 
-	d.FS.GetLogger().Println("Put file", href, " with ReadFrom result in status code:", resp.StatusCode)
+	d.FS.GetLogger().Println("Put file", href, "with ReadFrom result in status code:", resp.StatusCode)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return 0, errors.New(resp.Status)
 	}
@@ -461,8 +466,8 @@ func (d *DufsFile) Stat() (fs.FileInfo, error) {
 }
 
 func (d *DufsFile) CachedStat() (fs.FileInfo, error) {
-	d.locker.Lock()
-	defer d.locker.Unlock()
+	d.cachedStateLocker.Lock()
+	defer d.cachedStateLocker.Unlock()
 
 	if d.cachedState != nil {
 		return d.cachedState, nil
@@ -489,15 +494,33 @@ func (d *DufsFile) Write(p []byte) (n int, err error) {
 	return d.WriteAt(p, d.index)
 }
 
-func (d *DufsFile) WriteAt(p []byte, off int64) (n int, err error) {
+func (d *DufsFile) WriteAt(p []byte, offset int64) (n int, err error) {
+	d.indexLocker.Lock()
+	defer d.indexLocker.Unlock()
+
+	stat, err := d.CachedStat()
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) && offset == 0 {
+			reader := bytes.NewReader(p)
+			n, err := d.ReadFrom(reader)
+			d.index = n
+			return int(n), err
+		}
+		return 0, err
+	}
+
 	href := d.Href.String()
 	req, err := http.NewRequest(http.MethodPatch, href, bytes.NewReader(p))
 	if err != nil {
 		return 0, err
 	}
 
-	end := off + int64(len(p)) - 1
-	req.Header.Add("x-update-range", fmt.Sprintf("bytes=%d-%d", d.index, end))
+	end := offset + int64(len(p)) - 1
+	if offset >= stat.Size() {
+		req.Header.Add("x-update-range", "append")
+	} else {
+		req.Header.Add("x-update-range", fmt.Sprintf("bytes=%d-%d", d.index, end))
+	}
 
 	resp, err := d.FS.GetHttpClient().Do(req)
 	if err != nil {
@@ -507,13 +530,12 @@ func (d *DufsFile) WriteAt(p []byte, off int64) (n int, err error) {
 		_ = resp.Body.Close()
 	}()
 
-	d.FS.GetLogger().Println("Patch file", href, " with WriteAt result in status code:", resp.StatusCode)
+	d.FS.GetLogger().Println("Patch file", href, "with WriteAt result in status code:", resp.StatusCode, req.Header.Get("x-update-range"))
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return 0, errors.New(resp.Status)
 	}
 
 	d.index = end + 1
-
 	d.cachedState = nil
 
 	return len(p), nil
@@ -524,6 +546,9 @@ func (d *DufsFile) Seek(offset int64, whence int) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	d.indexLocker.Lock()
+	defer d.indexLocker.Unlock()
 
 	switch whence {
 	case io.SeekStart:
