@@ -15,4 +15,7 @@ FYI, not thread safe.
 
 ## Usage
 
-See test case [httpfs_test.go](httpfs_test.go).
+- [dufs_fs_test.go](dufs_fs_test.go)
+- [dufs_read_test.go](dufs_read_test.go)
+- [dufs_write_test.go](dufs_write_test.go)
+- [httpfs_test.go](httpfs_test.go)

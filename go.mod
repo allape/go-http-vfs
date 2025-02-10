@@ -1,3 +1,3 @@
-module github.com/allape/go-http-vfs
+module github.com/allape/gohtvfs
 
 go 1.23.2
